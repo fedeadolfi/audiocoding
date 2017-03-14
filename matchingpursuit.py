@@ -10,11 +10,12 @@ def max_onset(kernel, signal):
         if onset < 0:
             ker = kernel[-onset:]
             ons = 0
+        elif onset + kernel.size >= signal.size:
+            ker = kernel[:kernel.size - onset]
+            ons = onset
         else:
             ker = kernel
             ons = onset
-        if onset + kernel.size >= signal.size:
-            kernel = kernel[:kernel.size - onset]
         inner = np.dot(signal[ons:ons + ker.size], ker)
         if np.abs(inner) > maximum:
             maximum = np.abs(inner)
