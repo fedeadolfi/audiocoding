@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 def max_onset(kernel, signal):
     """ find for which translation kernel match signal the best"""
     maximum = -1.
+    #print -kernel.size + 1, signal.size
+    if np.isnan(kernel).any():
+        print "naaaan"
     for onset in range(-kernel.size + 1, signal.size):
         ker = np.array(kernel)
         ons = onset
