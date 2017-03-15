@@ -7,15 +7,13 @@ def max_onset(kernel, signal):
     """ find for which translation kernel match signal the best"""
     maximum = -1.
     for onset in range(-kernel.size + 1, signal.size):
+        ker = np.array(kernel)
+        ons = onset
         if onset < 0:
-            ker = kernel[-onset:]
+            ker = ker[-onset:]
             ons = 0
-        elif onset + kernel.size >= signal.size:
-            ker = kernel[:kernel.size - onset]
-            ons = onset
-        else:
-            ker = kernel
-            ons = onset
+        elif onset + ker.size >= signal.size:
+            ker = ker[:(signal.size - onset)]
         inner = np.dot(signal[ons:ons + ker.size], ker)
         if np.abs(inner) > maximum:
             maximum = np.abs(inner)
@@ -35,7 +33,8 @@ def matching_pursuit(ker_dic, signal, threshold=0.1):
     current_spike = threshold + 1
     spikes = {}
     tau = {}
-    while np.abs(current_spike) > threshold:
+    spikes_counter = 0
+    while np.abs(current_spike) > threshold and spikes_counter < signal.size:
         maximum = -1.
         for i, kernel in enumerate(ker_dic):
             index, spike = max_onset(kernel, rest)
@@ -50,12 +49,14 @@ def matching_pursuit(ker_dic, signal, threshold=0.1):
         spikes[current_kernel_ind].append(current_spike)
         tau[current_kernel_ind].append(current_tau)
         substract_kernel(rest, ker_dic[current_kernel_ind], current_spike, current_tau)
+        spikes_counter += 1
         #print "kernel {} - pos {} ; rest energy: {}".format(current_kernel_ind, current_tau,
         #                                                    np.sum(rest**2))
     return spikes, tau, rest
 
 def substract_kernel(rest, kernel, spike, onset):
     """! Substract a kernel from rest at a certain onset """
+    kernel = np.array(kernel)
     if onset < 0:
         kernel = kernel[-onset:]
         onset = 0
@@ -84,12 +85,13 @@ if __name__ == "__main__":
     X_SIG = np.sin(np.arange(100)/5.)
     KER = []
     for k in range(10):
-        #KER.append(np.random.randn(10))
-        KER.append(np.sin(np.arange(20)*k/15.))
-    SPIKES, TAU, _ = matching_pursuit(KER, X_SIG)
+        KER.append(np.random.randn(10))
+        #KER.append(np.sin(np.arange(20)*k/15.))
+    SPIKES, TAU, REST = matching_pursuit(KER, X_SIG)
     X_REC = reconstruct(KER, TAU, SPIKES, X_SIG.size)
     plt.plot(X_SIG)
     plt.plot(X_REC)
+    plt.plot(REST)
     plt.show()
     #kernel_size = 10
     #KERNEL_POS = 20
