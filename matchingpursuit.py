@@ -3,7 +3,7 @@ of kernels on a 1-d signal """
 import numpy as np
 import matplotlib.pyplot as plt
 
-def max_onset(kernel, signal):
+def max_onset_old(kernel, signal):
     """ find for which translation kernel match signal the best"""
     maximum = -1.
     #print -kernel.size + 1, signal.size
@@ -23,6 +23,13 @@ def max_onset(kernel, signal):
             out_onset = onset
             spike = inner
     return out_onset, spike
+def max_onset(ker, signal):
+    """ find for the best translation. 2nd version """
+    cross_cor = np.correlate(signal, ker, "full")
+    argm = np.argmax(np.abs(cross_cor))
+    #print max_onset_old(ker, signal)
+    #print argm, argm - ker.size + 1, cross_cor[argm]
+    return argm - ker.size + 1, cross_cor[argm]
 
 def matching_pursuit(ker_dic, signal, threshold=0.1):
     """! approximate signal with kernels dictionary
@@ -33,11 +40,11 @@ def matching_pursuit(ker_dic, signal, threshold=0.1):
             tau, the times were corresponding spiker are fired
             rest, the approximation - the input signal"""
     rest = np.array(signal)
-    current_spike = threshold + 1
+    current_norm_spike = threshold + 1
     spikes = {}
     tau = {}
     spikes_counter = 0
-    while np.abs(current_spike) > threshold and spikes_counter < signal.size:
+    while current_norm_spike > threshold and spikes_counter < signal.size:
         maximum = -1.
         for i, kernel in enumerate(ker_dic):
             index, spike = max_onset(kernel, rest)
@@ -53,8 +60,10 @@ def matching_pursuit(ker_dic, signal, threshold=0.1):
         tau[current_kernel_ind].append(current_tau)
         substract_kernel(rest, ker_dic[current_kernel_ind], current_spike, current_tau)
         spikes_counter += 1
-        #print "kernel {} - pos {} ; rest energy: {}".format(current_kernel_ind, current_tau,
-        #                                                    np.sum(rest**2))
+        current_norm_spike = np.abs(current_spike)/np.sum(ker_dic[current_kernel_ind]**2)
+        #print "kernel {} - pos {} ; rest energy: {}, spike: {}".format(
+        #    current_kernel_ind, current_tau,
+        #    np.sum(rest**2), current_norm_spike)
     return spikes, tau, rest
 
 def substract_kernel(rest, kernel, spike, onset):
