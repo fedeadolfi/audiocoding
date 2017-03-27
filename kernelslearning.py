@@ -1,7 +1,8 @@
 """! The modules which provides functions to learn the kernels """
 import numpy as np
 import matplotlib.pyplot as plt
-from matchingpursuit import matching_pursuit
+#from matchingpursuit import matching_pursuit
+from fastconvmp import fast_conv_mp
 
 
 def initialize_kernels(length, number):
@@ -41,17 +42,30 @@ def find_best_step(residual, partial, ker_spikes, ker_onsets, ker_energy):
         elif onset + part.size >= residual.size:
             part = part[:(residual.size - onset)]
         partial_sum[onset:onset + part.size] += spike * part / ker_energy
-    return np.dot(partial_sum, residual) / np.sum(partial_sum**2)
+    if np.sum(partial_sum**2) == 0:
+        print "weird..."
+        return 0., residual
+    else:
+        gamma = np.dot(partial_sum, residual) / np.sum(partial_sum**2)
+        return gamma, residual - gamma*partial_sum
 
 
 def update_dictionnary(ker_dic, spikes, tau, residual, max_size=-1):
     """! Update the kernel dictionnary via gradient ascent """
-    for index, ker in enumerate(ker_dic):
-        if index in spikes:
-            partial = partial_likelyhood(spikes[index], tau[index], ker.size,
-                                         np.sum(ker**2), residual)
-            step = find_best_step(residual, partial, spikes[index], tau[index], np.sum(ker**2))
-            ker += step*partial
+    current_rest = np.array(residual)
+    for _ in range(1000): #1000 iterations for gradient ascent
+        for index, ker in enumerate(ker_dic):
+            if index in spikes:
+                partial = partial_likelyhood(spikes[index],
+                                             tau[index],
+                                             ker.size,
+                                             np.sum(ker**2), current_rest)
+                step, current_rest = find_best_step(current_rest,
+                                                    partial,
+                                                    spikes[index],
+                                                    tau[index], np.sum(ker**2))
+                ker += step*partial
+        for index, ker in enumerate(ker_dic):
             if max_size > 0:
                 ker_resized = resize_kernel(ker)
                 if ker_resized.size < max_size:
@@ -61,17 +75,24 @@ def update_dictionnary(ker_dic, spikes, tau, residual, max_size=-1):
 def resize_kernel(kernel):
     """! If the kernel as a significant value on one of its etremity it is streched
     """
-    threshold = np.max(np.abs(kernel))/5.
-    if np.max(np.abs(kernel[:kernel.size/10])) > threshold:
+    if kernel.size > 30:
+        threshold = 0.2 * np.max(np.abs(kernel))
+        if np.max(np.abs(kernel[:kernel.size/10])) < threshold:
+            kernel = kernel[kernel.size/20:]
+        if np.max(np.abs(kernel[-kernel.size/10:])) < threshold:
+            kernel = kernel[:-kernel.size/20]
+    threshold = 0.3 * np.max(np.abs(kernel))
+    if np.max(np.abs(kernel[:kernel.size/20])) > threshold:
         kernel = np.concatenate([np.zeros(kernel.size/10), kernel])
-    if np.max(np.abs(kernel[-kernel.size/10:])) > threshold:
+    if np.max(np.abs(kernel[-kernel.size/20:])) > threshold:
         kernel = np.concatenate([kernel, np.zeros(kernel.size/10)])
     return kernel
 
-def learn_kernels(ker_dic, audio_waveform, max_ker_size=-1):
+def learn_kernels(ker_dic, audio_waveform, max_ker_size=-1, threshold=0.1, criterion="spike"):
     """ Update the kernels to fit a particular audio waveform """
     #print "* Matching pursuit"
-    spikes, tau, rest = matching_pursuit(ker_dic, audio_waveform)
+    #spikes, tau, rest = matching_pursuit(ker_dic, audio_waveform)
+    spikes, tau, rest = fast_conv_mp(ker_dic, audio_waveform, threshold, criterion)
     #print "* Dictionnary update"
     update_dictionnary(ker_dic, spikes, tau, rest, max_ker_size)
     for ker in ker_dic:
@@ -87,9 +108,12 @@ def main():
     old_kers = []
     for ker in ker_dic:
         old_kers.append(np.array(ker))
+    plt.ion()
     for _ in range(1000):
         #print "iteration: {}".format(k)
         learn_kernels(ker_dic, waveform, 60)
+        plt.plot(ker_dic[0])
+        plt.show(block=False)
     for _, ker in enumerate(ker_dic):
         plt.figure()
         plt.plot(ker)
